@@ -69,15 +69,15 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-    let tmp = tempfile::tempdir()?.keep();
-    info!("created tmp directory: {}", tmp.display());
+    let tmp = tempfile::tempdir()?;
+    info!("created tmp directory: {}", tmp.path().display());
 
-    copy_dir_all(&args.directory, &tmp).unwrap();
+    copy_dir_all(&args.directory, &tmp.path()).unwrap();
 
     // run everything in the tmp directory
     std::env::set_current_dir(&tmp)?;
 
-    mark_scripts_as_executable(&tmp);
+    mark_scripts_as_executable(&tmp.path());
     info!("marked scripts as executable");
 
     let mut contest_xml = String::new();
@@ -93,7 +93,7 @@ fn main() -> anyhow::Result<()> {
 
     if args.tests {
         info!("generating test files");
-        let problems_dir = tmp.join("problems");
+        let problems_dir = tmp.path().join("problems");
 
         // TODO: better error handling
         contest.problems.par_iter().for_each(|problem| {
@@ -115,7 +115,7 @@ fn main() -> anyhow::Result<()> {
     info!("created target folder: {}", target.display());
 
     info!("converting files to DOMJudge format");
-    converter::convert_contest(&tmp, target, &contest, StatementType::Pdf);
+    converter::convert_contest(tmp.path(), target, &contest, StatementType::Pdf);
 
     Ok(())
 }
