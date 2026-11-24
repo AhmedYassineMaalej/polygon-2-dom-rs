@@ -62,6 +62,11 @@ fn main() -> anyhow::Result<()> {
         })
         .init();
 
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build_global()
+        .unwrap();
+
     let args = Args::parse();
 
     let tmp = tempfile::tempdir()?.keep();

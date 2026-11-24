@@ -28,6 +28,11 @@ pub fn doall(problem: &Problem, problem_dir: &Path) {
         .par_bridge()
         .for_each(|test| {
             let input_path = test.path();
+
+            if input_path.extension() == Some(OsStr::new("a")) {
+                return;
+            }
+
             let output_path = input_path.with_extension("a");
 
             let input_file = File::open(&input_path).unwrap();
