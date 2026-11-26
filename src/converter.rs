@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, anyhow};
-use log::{info, warn};
+use log::{info, trace, warn};
 use serde::Serialize;
 
 use crate::{
@@ -42,15 +42,15 @@ pub fn convert_contest(
         )
         .unwrap();
 
-        info!("\tcopying test files");
+        trace!("\t\tcopying test files");
         copy_test_files(polygon_directory, dom_directory, problem).unwrap();
-        info!("\tcopying submission files");
+        trace!("\t\tcopying submission files");
         copy_submission_files(polygon_directory, dom_directory, problem).unwrap();
-        info!("\tcopying problem statements");
+        trace!("\t\tcopying problem statements");
         copy_problem_statements(polygon_directory, dom_directory, problem, preferred_type).unwrap();
-        info!("\tcopying custom files");
+        trace!("\t\tcopying custom files");
         copy_custom_files(polygon_directory, dom_directory, problem).unwrap();
-        info!("\tcreating DOMJudge-related files");
+        trace!("\t\tcreating DOMJudge-related files");
 
         write_domjudge_files(problem).unwrap();
         info!("prepared problem directory: {}", problem.short_name);
@@ -60,12 +60,15 @@ pub fn convert_contest(
 pub fn write_domjudge_files(problem: &Problem) -> anyhow::Result<()> {
     use std::fs;
     let root = Path::new(&problem.short_name);
-    fs::write(root.join(".timelimit"), format!("{:?}", problem.time_limit))?;
+    fs::write(
+        root.join(".timelimit"),
+        format!("{:?}", problem.constraints.time),
+    )?;
     fs::write(
         root.join("domjudge-problem.ini"),
         format!(
             "name={}\ntimelimit={:?}",
-            problem.full_name, problem.time_limit
+            problem.full_name, problem.constraints.time
         ),
     )?;
     Ok(())
@@ -117,7 +120,7 @@ fn prepare_problems_yaml(contest: &Contest) {
             id: &problem.short_name,
             label: &problem.index,
             rgb: color,
-            time_limit: problem.time_limit,
+            time_limit: problem.constraints.time,
             ordinal: 0, // placeholder
         });
     }
@@ -147,9 +150,17 @@ struct ContestInfo<'a> {
 }
 
 fn prepare_contest_yaml(contest: &Contest) {
-    use chrono::{Utc, format::SecondsFormat};
+    use jiff::{RoundMode, Timestamp, TimestampRound, Unit, tz};
 
-    let time = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, false);
+    let time = Timestamp::now()
+        .round(
+            TimestampRound::new()
+                .smallest(Unit::Second)
+                .mode(RoundMode::Trunc),
+        )
+        .unwrap()
+        .display_with_offset(tz::Offset::UTC)
+        .to_string();
 
     let contest_info = ContestInfo {
         duration: "5:00:00",
@@ -280,7 +291,7 @@ pub fn copy_submission_files(
     _dom_directory: &Path,
     problem: &Problem,
 ) -> anyhow::Result<()> {
-    for solution in &problem.solution_files {
+    for solution in &problem.files.solutions {
         let path = Path::new(&problem.short_name)
             .join("submissions")
             .join(retag(&solution.tag));
@@ -302,21 +313,21 @@ pub fn copy_custom_files(
 ) -> anyhow::Result<()> {
     let src_dir = get_problem_dir(polygon_directory, problem);
     let name = Path::new(&problem.short_name);
-    if let Some(f) = &problem.checker_file {
+    if let Some(f) = &problem.files.validator {
         shutil_copy(
             &src_dir.join(f),
             &dom_directory.join(name.join("output_validators").join("validator")),
         )?;
     }
 
-    if let Some(f) = &problem.interactor_file {
+    if let Some(f) = &problem.files.interactor {
         shutil_copy(
             &src_dir.join(f),
             &dom_directory.join(name.join("output_validators").join("validator")),
         )?;
     }
 
-    if let Some(f) = &problem.validator_file {
+    if let Some(f) = &problem.files.validator {
         shutil_copy(
             &src_dir.join(f),
             &dom_directory.join(name.join("input_validators").join("validator")),
@@ -338,6 +349,7 @@ pub fn copy_problem_statements(
     // earlier ones, and the fallback is the first type that was inserted.
     let last_of_type = |t: StatementType| {
         problem
+            .files
             .statements
             .iter()
             .rev()
@@ -347,6 +359,7 @@ pub fn copy_problem_statements(
     let statement = last_of_type(preferred_type)
         .or_else(|| {
             problem
+                .files
                 .statements
                 .first()
                 .and_then(|first| last_of_type(first.statement_type))
@@ -359,7 +372,7 @@ pub fn copy_problem_statements(
 
     let dest = dom_directory.join(Path::new(&problem.short_name).join("problem_statement"));
     let mut statement_files: HashSet<String> = HashSet::new();
-    for statement in &problem.statements {
+    for statement in &problem.files.statements {
         // For tex files, we only copy the main file
         if statement.statement_type == StatementType::Tex {
             shutil_copy(&src_dir.join(&statement.path), &dest)?;
@@ -401,10 +414,10 @@ pub fn prepare_problem_directory(problem: &Problem) -> anyhow::Result<()> {
     for sub in sub_directories {
         fs::create_dir_all(root.join(sub))?;
     }
-    if problem.checker_file.is_some() || problem.interactor_file.is_some() {
+    if problem.files.checker.is_some() || problem.files.interactor.is_some() {
         fs::create_dir_all(root.join("output_validators").join("validator"))?;
     }
-    if problem.validator_file.is_some() {
+    if problem.files.validator.is_some() {
         fs::create_dir_all(root.join("input_validators").join("validator"))?;
     }
     Ok(())
@@ -431,9 +444,9 @@ fn prepare_problem_yaml(
     _contest_directory: &Path,
     problem: &Problem,
 ) -> anyhow::Result<()> {
-    let validation = if problem.interactor_file.is_some() {
+    let validation = if problem.files.interactor.is_some() {
         Some("custom interactive")
-    } else if problem.checker_file.is_some() {
+    } else if problem.files.checker.is_some() {
         Some("custom")
     } else {
         None
@@ -441,8 +454,8 @@ fn prepare_problem_yaml(
     let info = ProblemYaml {
         author: problem.author.clone(),
         limits: Limits {
-            memory: problem.memory_limit,
-            time: problem.time_limit,
+            memory: problem.constraints.memory,
+            time: problem.constraints.time,
         },
         uuid: problem.index.clone(),
         validation,

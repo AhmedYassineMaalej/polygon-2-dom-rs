@@ -7,7 +7,7 @@ use std::{
     time::Instant,
 };
 
-use log::info;
+use log::{info, trace};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use walkdir::WalkDir;
 
@@ -46,7 +46,7 @@ pub fn doall(problem: &Problem, problem_dir: &Path) {
                 .wait()
                 .unwrap();
 
-            info!(
+            trace!(
                 "wrote output of {} in {}",
                 input_path.display(),
                 output_path.display()
@@ -56,7 +56,8 @@ pub fn doall(problem: &Problem, problem_dir: &Path) {
 
 pub fn compile_main_solution(problem: &Problem, problem_dir: &Path) -> PathBuf {
     let solution_path = &problem
-        .solution_files
+        .files
+        .solutions
         .iter()
         .find(|file| file.tag == "main")
         .unwrap()
@@ -68,7 +69,7 @@ pub fn compile_main_solution(problem: &Problem, problem_dir: &Path) -> PathBuf {
     binary_path.pop();
     binary_path.push(solution_path.file_stem().unwrap());
 
-    info!(
+    trace!(
         "main solution file for problem {} is at {}",
         problem.short_name,
         problem_dir.join(solution_path).display(),
@@ -81,16 +82,10 @@ pub fn compile_main_solution(problem: &Problem, problem_dir: &Path) -> PathBuf {
         .arg(&binary_path)
         .arg("-O3");
 
-    let start = Instant::now();
     let mut child = compile_command.spawn().unwrap();
     child.wait().unwrap();
-    let duration = start.elapsed();
 
-    info!(
-        "compiled {} at {} in {duration:?}",
-        solution_path.display(),
-        binary_path.display()
-    );
+    info!("compiled main solution for {}", problem.short_name);
 
     binary_path.clone()
 }

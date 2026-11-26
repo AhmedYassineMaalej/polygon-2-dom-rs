@@ -4,15 +4,27 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# error handling
 anyhow = "1.0.104"
-chrono = "0.4.45"
+
+# cli framework
 clap = { version = "4.6.8", features = ["derive"] }
+
+# logging
 env_logger = "0.11.11"
-html5ever = "0.40.1"
 log = "0.4.35"
-rayon = "1.12.0"
+
+# time
+jiff = "1.0.3"
+
+# parallelism
+rayon = { version ="1.12.0", default-features = false }
+
+# parsing
 roxmltree = "0.21.2"
 serde = { version = "1.0.229", features = ["derive"] }
+yaml_serde = "0.10.7"
+
+# file system helpers
 tempfile = "3.27.0"
 walkdir = "2.5.0"
-yaml_serde = "0.10.7"

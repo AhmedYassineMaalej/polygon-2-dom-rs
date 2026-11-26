@@ -10,50 +10,76 @@ pub struct Problem {
     pub index: String,
     pub short_name: String,
     pub full_name: String,
-    pub statements: Vec<Statement>,
-    pub solution_files: Vec<SolutionFile>,
-    pub checker_file: Option<PathBuf>,
-    pub validator_file: Option<PathBuf>,
-    pub interactor_file: Option<PathBuf>,
+    pub files: ProblemFiles,
     pub samples: HashSet<usize>,
-    pub time_limit: f64,
-    pub memory_limit: u64,
+    pub constraints: ProblemConstraints,
     pub author: String,
 }
 
-impl Problem {
+#[derive(Debug, Clone)]
+pub struct ProblemConstraints {
+    pub time: f64,
+    pub memory: u64,
+}
+
+impl ProblemConstraints {
     const TIME_LIMIT_DEFAULT: f64 = 1.0;
     const MEMORY_LIMIT_DEFAULT: u64 = 512;
 
+    pub fn new(time_limit: f64, memory_limit: u64) -> Self {
+        Self {
+            time: time_limit,
+            memory: memory_limit,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProblemFiles {
+    pub statements: Vec<Statement>,
+    pub solutions: Vec<SolutionFile>,
+    pub checker: Option<PathBuf>,
+    pub validator: Option<PathBuf>,
+    pub interactor: Option<PathBuf>,
+}
+
+impl ProblemFiles {
+    pub fn new(
+        statements: Vec<Statement>,
+        solutions: Vec<SolutionFile>,
+        checker: Option<PathBuf>,
+        validator: Option<PathBuf>,
+        interactor: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            statements,
+            solutions,
+            checker,
+            validator,
+            interactor,
+        }
+    }
+}
+
+impl Problem {
     fn new(
         index: String,
         short_name: String,
         full_name: String,
-        statements: Vec<Statement>,
-        solution_files: Option<Vec<SolutionFile>>,
-        checker_file: Option<PathBuf>,
-        validator_file: Option<PathBuf>,
-        interactor_file: Option<PathBuf>,
+        problem_files: ProblemFiles,
         samples: Option<HashSet<usize>>,
-        time_limit: f64,
-        memory_limit: u64,
+        constraints: ProblemConstraints,
         author: String,
     ) -> Self {
         let samples = samples.unwrap_or_default();
-        let solution_files = solution_files.unwrap_or_default();
 
         Self {
             index,
             short_name,
             full_name,
-            statements,
-            solution_files,
-            checker_file,
-            validator_file,
-            interactor_file,
+            files: problem_files,
             samples,
-            time_limit,
-            memory_limit,
+            constraints,
             author,
         }
     }
@@ -63,15 +89,15 @@ impl Problem {
     }
 
     pub fn has_validator(&self) -> bool {
-        self.validator_file.is_some()
+        self.files.validator.is_some()
     }
 
     pub fn has_checker(&self) -> bool {
-        self.checker_file.is_some()
+        self.files.checker.is_some()
     }
 
     pub fn has_interactor(&self) -> bool {
-        self.interactor_file.is_some()
+        self.files.interactor.is_some()
     }
 
     fn parse_author<'b>(root: &'b Node<'_, 'b>) -> Result<&'b str> {
@@ -261,18 +287,23 @@ impl Problem {
             solution_files.push(SolutionFile::new(file, tag));
         }
 
+        let problem_files = ProblemFiles::new(
+            statements,
+            solution_files,
+            checker_file,
+            validator_file,
+            interactor_file,
+        );
+
+        let problem_contraints = ProblemConstraints::new(time_limit, memory_limit);
+
         Ok(Problem::new(
             index,
             short_name.to_string(),
             full_name.to_string(),
-            statements,
-            Some(solution_files),
-            checker_file,
-            validator_file,
-            interactor_file,
+            problem_files,
             Some(samples),
-            time_limit,
-            memory_limit,
+            problem_contraints,
             author.to_string(),
         ))
     }

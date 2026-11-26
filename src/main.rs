@@ -10,7 +10,7 @@ mod scripts;
 use anyhow::Ok;
 use clap::Parser;
 use env_logger::{Builder, Env};
-use log::{info, warn};
+use log::{info, trace, warn};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fs::{self, File},
@@ -50,7 +50,7 @@ struct Args {
 use std::io::Write;
 
 fn main() -> anyhow::Result<()> {
-    Builder::from_env(Env::default().default_filter_or("trace"))
+    Builder::from_env(Env::default().default_filter_or("info"))
         .format(|buf, record| {
             let level_style = buf.default_level_style(record.level());
             writeln!(
@@ -72,13 +72,13 @@ fn main() -> anyhow::Result<()> {
     let tmp = tempfile::tempdir()?;
     info!("created tmp directory: {}", tmp.path().display());
 
-    copy_dir_all(&args.directory, &tmp.path()).unwrap();
+    copy_dir_all(&args.directory, tmp.path()).unwrap();
 
     // run everything in the tmp directory
     std::env::set_current_dir(&tmp)?;
 
-    mark_scripts_as_executable(&tmp.path());
-    info!("marked scripts as executable");
+    mark_scripts_as_executable(tmp.path());
+    trace!("marked scripts as executable");
 
     let mut contest_xml = String::new();
     {
@@ -97,12 +97,8 @@ fn main() -> anyhow::Result<()> {
 
         // TODO: better error handling
         contest.problems.par_iter().for_each(|problem| {
-            info!(
-                "Running tests generator for problem {}",
-                problem.full_name()
-            );
-
             doall(problem, &problems_dir.join(&problem.short_name));
+            info!("ran tests generator for problem {}", problem.full_name());
         });
 
         custom_file_warning("checkers", &contest.get_problems_with_checker());
